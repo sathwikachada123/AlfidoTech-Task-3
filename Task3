@@ -1,0 +1,255 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+plt.style.use("ggplot")
+df = pd.read_csv("C:/Users/user/Downloads/archive (4)/photos.csv")   # Change file name if different
+df.head()
+df = pd.read_csv("C:/Users/user/Downloads/archive (4)/comments.csv""")   # Change file name if different
+df.head()
+df = pd.read_csv("C:/Users/user/Downloads/archive (4)/follows.csv")  # Change file name if different
+df.head()
+df = pd.read_csv("C:/Users/user/Downloads/archive (4)/likes.csv")  # Change file name if different
+df.head()
+df = pd.read_csv("C:/Users/user/Downloads/archive (4)/photo_tags.csv")  # Change file name if different
+df.head()
+df = pd.read_csv("C:/Users/user/Downloads/archive (4)/tags.csv")  # Change file name if different
+df.head()
+df = pd.read_csv("C:/Users/user/Downloads/archive (4)/users.csv")  # Change file name if different
+df.head()
+print(df.info())
+print(df.describe())
+print(df.isnull().sum())
+print(df.columns)
+# --- Step 4: Clean column names ---
+df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+print(df.columns)
+df["verified_flag"] = df["verified_status"].apply(lambda x: 1 if str(x).lower()=="true" else 0)
+df["engagement_score"] = df["post_count"] * (1 + df["verified_flag"])
+df["post_count"] = df["post_count"] + df["verified_flag"]
+# --- Step 4: Exploratory Analysis ---
+# Posts by day
+sns.countplot(x="day", data=df, order=df["day"].value_counts().index)
+plt.title("Posts by Day of Week")
+plt.show()
+# Posts by hour
+sns.boxplot(x="hour", y="post_count", data=df)
+plt.title("Post Count by Hour")
+plt.show()
+# Verified vs non-verified posting
+sns.barplot(x="verified_flag", y="post_count", data=df)
+plt.title("Post Count by Verified Status")
+plt.show()
+# --- Step 5: Recommendations ---
+best_days = df.groupby("day")["post_count"].mean().sort_values(ascending=False).head(3)
+best_hours = df.groupby("hour")["post_count"].mean().sort_values(ascending=False).head(3)
+print("Top Posting Days:\n", best_days)
+print("Top Posting Hours:\n", best_hours)
+users= pd.read_csv("C:/Users/user/Downloads/archive (4)/users.csv") 
+photos= pd.read_csv("C:/Users/user/Downloads/archive (4)/photos.csv")
+likes=pd.read_csv("C:/Users/user/Downloads/archive (4)/likes.csv") 
+comments=pd.read_csv("C:/Users/user/Downloads/archive (4)/comments.csv") 
+tags=pd.read_csv("C:/Users/user/Downloads/archive (4)/tags.csv")
+photo_tags=pd.read_csv("C:/Users/user/Downloads/archive (4)/photo_tags.csv")
+follows=pd.read_csv("C:/Users/user/Downloads/archive (4)/follows.csv") 
+datasets = {
+    "users": users,
+    "photos": photos,
+    "likes": likes,
+    "comments": comments,
+    "tags": tags,
+    "photo_tags": photo_tags,
+    "follows": follows
+}
+for name, df in datasets.items():
+    print(name)
+    print(df.head())
+print(photos.columns)
+photos.columns = photos.columns.str.strip().str.lower().str.replace(" ", "_")
+print(photos.columns)
+photos["created_dat"] = pd.to_datetime(photos["created_dat"])
+photos["day"] = photos["created_dat"].dt.day_name()
+photos["hour"] = photos["created_dat"].dt.hour
+photos["created_dat"] = pd.to_datetime(photos["created_dat"], format="%d-%m-%Y %H:%M")
+likes.groupby("photo").size().plot(kind="hist",bins=20) #  Correct
+print("Likes columns:", likes.columns.tolist())
+print("Comments columns:", comments.columns.tolist())
+print("Photos columns:", photos.columns.tolist())
+likes.groupby(id).size().plot(kind="hist", bins=20)
+likes.groupby("photo").size().plot(kind="hist", bins=20)
+plt.title("Likes Distribution")
+plt.show()
+comments.groupby("Photo id").size().plot(kind="hist", bins=20)
+plt.title("Comments Distribution")
+plt.show()
+# Grouping using the exact column names from your printout
+likes_count = likes.groupby("photo").size().reset_index(name="likes")
+comments_count = comments.groupby("Photo id").size().reset_index(name="comments")
+
+# Merge them together using the photo identifiers
+engagement = likes_count.merge(comments_count,
+                               left_on="photo",
+                               right_on="Photo id",
+                               how="outer").fillna(0)
+
+engagement["engagement"] = engagement["likes"] + engagement["comments"]
+print("Follows columns:", follows.columns.tolist())
+# 1. Calculate followers count per user (note the lowercase 'f' and the space at the end!)
+followers = follows.groupby("followee ").size().reset_index(name="followers")
+
+# 2. Merge engagement with photos to get the user_id for each photo
+engagement = engagement.merge(photos[["id", "user_id"]],
+                              left_on="photo",
+                              right_on="id")
+
+# 3. Merge with followers data
+engagement = engagement.merge(followers,
+                              left_on="user_id",
+                              right_on="followee ",
+                              how="left")
+
+# 4. Fill missing follower counts with 1 to prevent dividing by zero
+engagement["followers"] = engagement["followers"].fillna(1)
+
+# 5. Compute the rate
+engagement["engagement_rate"] = (
+    engagement["likes"] +
+    engagement["comments"]
+) / engagement["followers"] * 100
+print(engagement.head())
+# 1. Safely handle verified_flag if the column name matches capitalization variations
+if "verified_status" in users.columns:
+    users["verified_flag"] = users["verified_status"].map({"yes":1, "true":1, "Verified":1}).fillna(0)
+elif "Verified status" in users.columns:
+    users["verified_flag"] = users["Verified status"].map({"yes":1, "true":1, "Verified":1}).fillna(0)
+elif "verified status" in users.columns:
+    users["verified_flag"] = users["verified status"].map({"yes":1, "true":1, "Verified":1}).fillna(0)
+else:
+    # If the column name is completely different, create a default flag column so the graphs don't crash
+    users["verified_flag"] = 0
+
+# 2. Merge user information into the photos table
+# (Note: left_on matches 'user_id' from photos, right_on matches 'id' from users)
+analysis = photos.merge(users,
+                        left_on="user_id",
+                        right_on="id",
+                        how="left")
+
+print("Merge completed successfully! Dimensions:", analysis.shape)
+plt.figure(figsize=(8,5))
+sns.countplot(x="day",data=analysis)
+plt.title("Posts by Day")
+plt.show()
+plt.figure(figsize=(10,5))
+sns.countplot(x="hour",data=analysis)
+plt.title("Posts by Hour")
+plt.show()
+plt.figure(figsize=(6,4))
+sns.countplot(x="photo_type",data=photos)
+plt.title("Content Type")
+plt.show()
+plt.figure(figsize=(6,4))
+# Using countplot removes the need for a 'y' column entirely
+sns.countplot(x="verified_flag", data=users)
+plt.title("Verified vs Non Verified User Counts")
+plt.xticks([0, 1], ["Non-Verified", "Verified"]) # Cleans up the 0 and 1 labels on the graph
+plt.show()
+# 1. Dynamically find the column name that contains 'tag'
+tag_col = [col for col in photo_tags.columns if 'tag' in col.lower()]
+
+if tag_col:
+    # Use the first column matching 'tag'
+    top_tags = photo_tags[tag_col[0]].value_counts().head(10)
+
+    plt.figure(figsize=(8,5))
+    top_tags.plot(kind="bar")
+    plt.title(f"Top Hashtags (by {tag_col[0]})")
+    plt.show()
+else:
+    print("Could not find a tag column. Available columns are:", photo_tags.columns.tolist())
+# 1. Dynamically find the username column (checking case variations)
+username_col = [col for col in analysis.columns if 'name' in col.lower()] if 'analysis' in locals() else []
+
+if username_col:
+    # 2. Count photo entries per user to find the top 10 most active users
+    top_users = analysis[username_col[0]].value_counts().head(10)
+
+    # 3. Plot the data beautifully
+    plt.figure(figsize=(10, 5))
+    sns.barplot(x=top_users.index, y=top_users.values, palette="Reds_r")
+    
+    plt.xticks(rotation=45)
+    plt.title("Top 10 Most Active Users (By Post Count)")
+    plt.xlabel("Username")
+    plt.ylabel("Number of Posts")
+    plt.show()
+else:
+    # Fallback error message if variables aren't loaded yet
+    print("Error: Please make sure your data imports and 'analysis' dataframe cells at the top of the notebook have been run first!")
+likes.groupby("photo").size().plot(kind="hist",bins=20)
+plt.title("Likes Distribution")
+plt.show()
+print("Likes columns:", likes.columns.tolist())
+print("Comments columns:", comments.columns.tolist())
+print("Photo Tags columns:", photo_tags.columns.tolist())
+# Match the column names exactly as printed by your system
+likes_col = 'photo'         # 'photo' matches the likes dataframe
+comments_col = 'Photo id'   # 'Photo id' matches the comments dataframe exactly
+tags_col = 'photo'          # 'photo' matches the photo_tags dataframe
+
+# 1. Group individual engagement metrics
+likes_per_photo = likes.groupby(likes_col).size().reset_index(name='likes_count')
+comments_per_photo = comments.groupby(comments_col).size().reset_index(name='comments_count')
+tags_per_photo = photo_tags.groupby(tags_col).size().reset_index(name='tags_count')
+
+# Rename the key columns to match exactly so they merge flawlessly
+likes_per_photo.rename(columns={likes_col: 'photo_id_key'}, inplace=True)
+comments_per_photo.rename(columns={comments_col: 'photo_id_key'}, inplace=True)
+tags_per_photo.rename(columns={tags_col: 'photo_id_key'}, inplace=True)
+
+# 2. Merge with your primary photos table
+# Note: Based on your previous setup, 'photos' uses 'id' as the main identifier
+photos_analysis = photos.merge(likes_per_photo, left_on='id', right_on='photo_id_key', how='left')
+photos_analysis = photos_analysis.merge(comments_per_photo, left_on='id', right_on='photo_id_key', how='left')
+photos_analysis = photos_analysis.merge(tags_per_photo, left_on='id', right_on='photo_id_key', how='left')
+
+# Drop helper key copies to keep the dataset clean
+photos_analysis = photos_analysis.loc[:, ~photos_analysis.columns.str.contains('_key')]
+
+# 3. Clean null assignments and combine features
+metrics_cols = ['likes_count', 'comments_count', 'tags_count']
+photos_analysis[metrics_cols] = photos_analysis[metrics_cols].fillna(0)
+photos_analysis['total_interactions'] = photos_analysis['likes_count'] + photos_analysis['comments_count']
+
+print("Success! Consolidated DataFrame ready.")
+print(photos_analysis.head())
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Set visual style
+sns.set_theme(style="whitegrid")
+
+# 1. Visualizing the Distribution of Total Interactions
+plt.figure(figsize=(9, 5))
+sns.histplot(data=photos_analysis, x='total_interactions', kde=True, color='darkorange', bins=15)
+plt.title('Overall Post Engagement Distribution (Likes + Comments)', fontsize=14, pad=15)
+plt.xlabel('Total Interactions Count')
+plt.ylabel('Frequency of Posts')
+plt.show()
+
+# 2. Visualizing Tag Density vs. Total Engagement Impact
+plt.figure(figsize=(9, 5))
+sns.scatterplot(data=photos_analysis, x='tags_count', y='total_interactions', color='teal', s=100, alpha=0.8)
+sns.regplot(data=photos_analysis, x='tags_count', y='total_interactions', scatter=False, color='red', label='Trendline')
+plt.title('How Tag Densities Influence Post Performance', fontsize=14, pad=15)
+plt.xlabel('Number of Tags Applied')
+plt.ylabel('Total Interactions Generated')
+plt.legend()
+plt.show()
+# Change feature_importances__ (two underscores) to feature_importances_ (one underscore)
+importances = ml_model.feature_importances_
+features_list = X.columns
+
+print("\nFeature Contribution Importance Hierarchy:")
+for index, importance in enumerate(importances):
+    print(f" - Feature '{features_list[index]}': Weight Value {importance:.4f}")
